@@ -518,7 +518,6 @@ Your tasks:
                 st.markdown(m.content[0].text.value)
                 break
 
-
 elif section == "📤 Export Insights (JSON)":
     st.title("📤 Export Final Insights from Agents")
 
@@ -533,7 +532,6 @@ elif section == "📤 Export Insights (JSON)":
                 uploaded = openai.files.create(file=open(path, "rb"), purpose="assistants")
                 file_ids.append(uploaded.id)
 
-    # vytvoř zprávu pro oba agenty se žádostí o JSON
     for agent_id, label in [
         (st.session_state.farm_id, "FarmAgent"),
         (st.session_state.cow_id, "CowAgent")
@@ -544,20 +542,17 @@ elif section == "📤 Export Insights (JSON)":
             content=f"""
 You are the {label} of a digital twin dairy farm.
 
-Please return your final insights in JSON format. Structure:
+Return ONLY valid JSON, nothing else. Format:
 {{
-    "summary": "...",
-    "metrics": {{
-        "total_milk": ...,
-        "avg_milk_per_cow": ...,
-        "high_risk_animals": [...],
-        "monthly_costs": [...],
-        ...
-    }},
-    "conclusion": "..."
+  "summary": "...",
+  "metrics": {{
+    "total_milk": 0,
+    "avg_milk_per_cow": 0,
+    "high_risk_animals": [],
+    "monthly_costs": []
+  }},
+  "conclusion": "..."
 }}
-
-Use code interpreter to compute values and return real numbers.
 """,
             attachments=[{"file_id": fid, "tools": [{"type": "code_interpreter"}]} for fid in file_ids]
         )
@@ -576,10 +571,16 @@ Use code interpreter to compute values and return real numbers.
         for msg in messages.data[::-1]:
             if msg.role == "assistant":
                 st.markdown(f"### 📦 JSON Output from {label}:")
-                try:
-                    json_data = json.loads(msg.content[0].text.value)
-                    st.json(json_data)
-                except Exception as e:
-                    st.error(f"❌ Failed to parse JSON from {label}: {e}")
-                    st.markdown(msg.content[0].text.value)
+                import re
+                raw = msg.content[0].text.value
+                match = re.search(r"\{[\s\S]*\}", raw)
+                if match:
+                    try:
+                        st.json(json.loads(match.group(0)))
+                    except Exception as e:
+                        st.error(f"❌ JSON parsing error: {e}")
+                        st.code(match.group(0))
+                else:
+                    st.error("❌ No JSON found in response.")
+                    st.markdown(raw)
                 break

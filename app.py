@@ -35,6 +35,8 @@ if not farm_name:
     st.warning("Please select or enter a farm name.")
     st.stop()
 
+st.session_state["farm_name"] = farm_name
+
 # === Folder for selected farm ===
 FOLDER = os.path.join(FOLDER_BASE, farm_name.replace(" ", "_"))
 os.makedirs(FOLDER, exist_ok=True)
@@ -44,7 +46,8 @@ view = st.sidebar.radio("📋 Menu", [
     "🧪 Run Sustainability Analysis",
     "📂 Farm Files Overview",
     "📊 View Last Report",
-    "📈 Trends & Visual Insights"
+    "📈 Trends & Visual Insights",
+    "🌍 Farm Location & Profile"
 ])
 
 st.title(f"🐄 Dairy Sustainability AI – `{farm_name}`")
@@ -235,3 +238,6 @@ elif view == "📈 Trends & Visual Insights":
         st.subheader("⏱️ Avg. Treatment Duration (if available)")
         if 'duration' in treatment_df.columns:
             st.bar_chart(treatment_df['duration'])
+
+elif view == "🌍 Farm Location & Profile":
+    import farm_profile_view  # spustí se přes streamlit

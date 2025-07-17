@@ -13,30 +13,36 @@ openai.api_key = st.secrets["OPENAI_API_KEY"]
 with open("dairy_sustainability_agent.json", "r") as f:
     agent_id = json.load(f)["id"]
 
-# === Create storage folder ===
-FOLDER = "streamlet/farm_data"
+# === 0. Input farm name ===
+st.sidebar.title("🐄 Dairy Twin System")
+farm_name = st.sidebar.text_input("👩‍🌾 Enter your farm name or ID:")
+
+if not farm_name:
+    st.warning("Please enter your farm name in the sidebar.")
+    st.stop()
+
+# === Define folder for this farm ===
+FOLDER_BASE = "streamlet/farm_data"
+FOLDER = os.path.join(FOLDER_BASE, farm_name.replace(" ", "_"))
 os.makedirs(FOLDER, exist_ok=True)
 
-st.title("🐄 Dairy Sustainability AI Agent")
+st.title(f"🐄 Dairy Sustainability AI – `{farm_name}`")
 
-# === 1. Upload CSV files ===
-uploaded_files = st.file_uploader("📂 Upload CSV files related to your dairy farm", type="csv", accept_multiple_files=True)
-
+# === 1. Upload CSV ===
+uploaded_files = st.file_uploader("📂 Upload your farm CSV files", type="csv", accept_multiple_files=True)
 file_ids = []
 
 if uploaded_files:
-    st.subheader("📥 Uploaded data preview:")
+    st.subheader("📥 Uploaded CSV preview:")
     for file in uploaded_files:
         df = pd.read_csv(file)
         st.dataframe(df.head())
-        # Save locally
         path = os.path.join(FOLDER, file.name)
         df.to_csv(path, index=False)
-        # Upload to OpenAI
         uploaded = openai.files.create(file=open(path, "rb"), purpose="assistants")
         file_ids.append(uploaded.id)
 
-# === 2. Analyze sustainability ===
+# === 2. Run AI Analysis ===
 if file_ids and st.button("🚀 Run Sustainability Analysis"):
     thread = openai.beta.threads.create()
 
@@ -44,11 +50,11 @@ if file_ids and st.button("🚀 Run Sustainability Analysis"):
         thread_id=thread.id,
         role="user",
         content="""
-Please analyze all uploaded dairy farm CSVs and return sustainability metrics as compact JSON only.
+You are an AI agent analyzing dairy farm sustainability.
 
-Respond strictly in this format:
+Analyze the uploaded data and return a compact JSON with:
 {
-  "summary": "...",
+  "summary": "Short description",
   "sustainability": {
     "economic": {
       "total_milk_income": float,
@@ -66,24 +72,23 @@ Respond strictly in this format:
     }
   },
   "recommendations": [
-    "First short recommendation.",
-    "Second one.",
-    "Third one."
+    "First recommendation",
+    "Second recommendation"
   ]
 }
-Do not include any explanation or markdown. Just return valid JSON.
+Respond only with valid JSON.
 """,
         attachments=[{"file_id": fid, "tools": [{"type": "code_interpreter"}]} for fid in file_ids]
     )
 
     run = openai.beta.threads.runs.create(thread_id=thread.id, assistant_id=agent_id)
 
-    with st.spinner("♻️ Running AI sustainability analysis..."):
+    with st.spinner("♻️ Running AI analysis..."):
         while run.status not in ["completed", "failed"]:
             time.sleep(2)
             run = openai.beta.threads.runs.retrieve(run.id, thread_id=thread.id)
 
-    # === Process result ===
+    # === Output parsing ===
     messages = openai.beta.threads.messages.list(thread_id=thread.id)
     for msg in messages.data[::-1]:
         if msg.role == "assistant":
@@ -93,7 +98,6 @@ Do not include any explanation or markdown. Just return valid JSON.
                 try:
                     result = json.loads(match.group(0))
 
-                    # === Nicely formatted output ===
                     st.subheader("📋 Sustainability Analysis Summary")
                     st.write(result.get("summary", "No summary provided."))
 
@@ -116,7 +120,11 @@ Do not include any explanation or markdown. Just return valid JSON.
 
                     st.markdown("### 💡 Recommendations")
                     for rec in result.get("recommendations", []):
-                        st.markdown(f"- {rec}")
+                        st.success(f"• {rec}")
+
+                    # Optional: Save result to JSON
+                    with open(os.path.join(FOLDER, "sustainability_report.json"), "w") as f:
+                        json.dump(result, f, indent=2)
 
                 except Exception as e:
                     st.error(f"❌ JSON parsing error: {e}")

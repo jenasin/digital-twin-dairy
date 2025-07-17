@@ -10,8 +10,7 @@ import re
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # === Load assistant ID ===
-with open("dairy_sustainability_agent.json", "r") as f:
-    agent_id = json.load(f)["id"]
+agent_id = st.secrets["dairy_sustainability_agent"]["id"]
 
 # === Base folder for all farms ===
 FOLDER_BASE = "streamlet/farm_data"

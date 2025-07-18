@@ -1,0 +1,34 @@
+## 🥛 Underperforming Cows
+- COW001: Average Milk Yield - 9.70, Lactation Number - 5
+- COW002: Average Milk Yield - 9.30, Lactation Number - 4
+- COW007: Average Milk Yield - 9.19, Lactation Number - 4
+- COW008: Average Milk Yield - 9.54, Lactation Number - 4
+- COW009: Average Milk Yield - 9.30, Lactation Number - 5
+- ...
+- COW188: Average Milk Yield - 9.87, Lactation Number - 4
+- COW192: Average Milk Yield - 9.36, Lactation Number - 4
+
+### Suggestions
+- Introduce energy-rich supplements such as glucose or propylene glycol.
+- Increase dietary protein by incorporating soybean meal or canola meal.
+- Consider feed additives like rumen-protected fats to boost energy density.
+
+## 🐘 Over-conditioned Cows
+- COW005: Average Milk Yield - 9.36, Age - 58 months
+- COW043: Average Milk Yield - 9.50, Age - 87 months
+- COW046: Average Milk Yield - 9.25, Age - 85 months
+- COW049: Average Milk Yield - 9.80, Age - 51 months
+- COW054: Average Milk Yield - 9.51, Age - 59 months
+- ...
+- COW177: Average Milk Yield - 9.63, Age - 102 months
+- COW189: Average Milk Yield - 9.57, Age - 61 months
+
+### Suggestions
+- Reduce overall energy intake by decreasing the amount of concentrate feed.
+- Introduce high-fiber forages like hay and silage to improve rumen health and satisfy hunger without excessive energy.
+- Monitor body condition scores and adjust rations based on individual needs.
+
+## 🧪 Feed Strategy Recommendations
+- Reduce concentrates and high-energy feeds for over-conditioned cows to prevent excessive weight gain.
+- Increase protein and energy supplements for underperforming cows to boost milk yield.
+- Enhance nutrient balancing by including mineral and vitamin premixes to meet the specific needs of different cow categories within the herd.

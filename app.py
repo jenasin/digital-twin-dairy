@@ -50,7 +50,11 @@ view = st.sidebar.radio("📋 Menu", [
     "🌍 Farm Location & Profile",
     "🧠 AI Sustainability Assistant",
     "📈 Milk Production Forecast",
-    "🥕 Feed Optimization"
+    "🥕 Feed Optimization",
+    "♻️ Biogas & Manure",
+    "🌦️ Weather & Climate",
+    "🩺 Health Monitoring",
+    "🌍 Sustainability Dashboard"
 ])
 
 st.title(f"🐄 Dairy Sustainability AI – `{farm_name}`")
@@ -415,80 +419,578 @@ elif view == "🥕 Feed Optimization":
 
     farm_name = st.session_state.get("farm_name")
     FOLDER = os.path.join("streamlet/farm_data", farm_name.replace(" ", "_"))
+    report_path = os.path.join(FOLDER, "feed_optimization_report.txt")
 
     if not os.path.exists(FOLDER):
         st.warning("Farm folder not found.")
         st.stop()
 
-    # === Load farm files ===
-    data_files = [
-        os.path.join(FOLDER, f)
-        for f in os.listdir(FOLDER)
-        if f.endswith(".csv") or f.endswith(".json")
-    ]
+    st.markdown("### 📋 Feed Optimization Report")
 
-    if not data_files:
-        st.warning("No CSV or JSON files found for this farm.")
-        st.stop()
+    # === Show saved report if exists ===
+    if os.path.exists(report_path):
+        with open(report_path, "r", encoding="utf-8") as f:
+            saved_report = f.read().replace("```markdown", "").replace("```", "").replace("undefined", "").strip()
 
-    # === Upload files to OpenAI ===
-    attachments = []
-    for path in data_files:
-        with open(path, "rb") as f:
-            uploaded = openai.files.create(file=f, purpose="assistants")
-            attachments.append({
-                "file_id": uploaded.id,
-                "tools": [{"type": "code_interpreter"}]
-            })
+            # Rozdělit na sekce podle nadpisů
+            sections = saved_report.split("## ")
+            for section in sections:
+                if section.strip():
+                    lines = section.strip().split("\n")
+                    title = lines[0]
+                    content = "\n".join(lines[1:])
+                    with st.expander(title.strip(), expanded=True):
+                        st.markdown(content)
+        st.info("📁 Loaded from saved report.")
+    else:
+        st.info("No saved report found. Click below to generate a new one.")
 
-    # === Prompt: structured + direct instruction ===
-    prompt = """
+    # === Button to run analysis ===
+    if st.button("🔄 Run Feed Analysis"):
+        data_files = [
+            os.path.join(FOLDER, f)
+            for f in os.listdir(FOLDER)
+            if f.endswith(".csv") or f.endswith(".json")
+        ]
+
+        if not data_files:
+            st.warning("No data files found.")
+            st.stop()
+
+        attachments = []
+        for path in data_files:
+            with open(path, "rb") as f:
+                uploaded = openai.files.create(file=f, purpose="assistants")
+                attachments.append({
+                    "file_id": uploaded.id,
+                    "tools": [{"type": "code_interpreter"}]
+                })
+
+        prompt = """
 You are a feed advisor for dairy cows.
 
 Use the following data files (milk yield, cow info, treatments, cost) to generate a clear, structured report.
 
-Return in Markdown format (no explanations) the following:
+Return in plain Markdown (NO code blocks) and include only the following sections:
+
 ## 🥛 Underperforming Cows
-- List cows (by ID or group) with low milk yield and high number of lactations.
-- Include suggestions on increasing feed quality or amount.
+- List cows with low milk yield and high lactation number.
+- Add concrete suggestions (e.g. energy supplements).
 
 ## 🐘 Over-conditioned Cows
-- List cows that are possibly overfed (low output, high age/lactation, good health).
-- Recommend reduction in feeding or adjustment.
+- List cows with low output but high age/lactation and good health.
+- Suggest reducing feeding or changing rations.
 
 ## 🧪 Feed Strategy Recommendations
-- Summary of where to reduce/increase feed
-- General feed adjustment strategy for the herd
-- If any nutrient imbalance is suspected, mention it
+- Summary of changes (reduce/increase).
+- Suggestions on nutrient balancing.
 
-Format output for use in a web app. Use emojis and professional, clear language. Do not explain what you're doing — just give the report.
-    """
+No introductions, no explanations. Respond only with the report in plain Markdown (no ```markdown).
+        """
 
-    # === Start thread and send message ===
-    thread = openai.beta.threads.create()
+        thread = openai.beta.threads.create()
+        openai.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=prompt,
+            attachments=attachments
+        )
 
-    openai.beta.threads.messages.create(
-        thread_id=thread.id,
-        role="user",
-        content=prompt,
-        attachments=attachments
-    )
+        run = openai.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id=st.secrets["dairy_sustainability_agent"]["id"]
+        )
 
-    run = openai.beta.threads.runs.create(
-        thread_id=thread.id,
-        assistant_id=st.secrets["dairy_sustainability_agent"]["id"]
-    )
+        with st.spinner("🐄 Optimizing feeding strategy..."):
+            while run.status not in ["completed", "failed"]:
+                time.sleep(2)
+                run = openai.beta.threads.runs.retrieve(run.id, thread_id=thread.id)
 
-    with st.spinner("🐄 Optimizing feeding strategy..."):
-        while run.status not in ["completed", "failed"]:
-            time.sleep(2)
-            run = openai.beta.threads.runs.retrieve(run.id, thread_id=thread.id)
+        messages = openai.beta.threads.messages.list(thread_id=thread.id)
+        for msg in messages.data[::-1]:
+            if msg.role == "assistant":
+                report = msg.content[0].text.value
+                report_clean = report.replace("```markdown", "").replace("```", "").replace("undefined", "").strip()
 
-    # === Show assistant response ===
-    messages = openai.beta.threads.messages.list(thread_id=thread.id)
-    for msg in messages.data[::-1]:
-        if msg.role == "assistant":
-            st.markdown("### 📋 Feed Optimization Report")
-            st.markdown(msg.content[0].text.value.strip())
-            break
+                # Save report
+                with open(report_path, "w", encoding="utf-8") as f:
+                    f.write(report_clean)
 
+                # Show report nicely
+                sections = report_clean.split("## ")
+                for section in sections:
+                    if section.strip():
+                        lines = section.strip().split("\n")
+                        title = lines[0]
+                        content = "\n".join(lines[1:])
+                        with st.expander(title.strip(), expanded=True):
+                            st.markdown(content)
+
+                st.success("✅ New report generated and saved.")
+                break
+
+    # Tlačítko "zpět nahoru"
+    st.markdown("---")
+    st.markdown("<a href='#top' style='font-size:20px;'>⬆️ Back to Top</a>", unsafe_allow_html=True)
+
+elif view == "♻️ Biogas & Manure":
+    st.title("♻️ Biogas and Manure Utilization")
+
+    farm_name = st.session_state.get("farm_name")
+    FOLDER = os.path.join("streamlet/farm_data", farm_name.replace(" ", "_"))
+    report_path = os.path.join(FOLDER, "biogas_manure_report.txt")
+
+    if not os.path.exists(FOLDER):
+        st.warning("Farm folder not found.")
+        st.stop()
+
+    st.markdown("### 📋 Biogas & Manure Report")
+
+    # === Show saved report if exists ===
+    if os.path.exists(report_path):
+        with open(report_path, "r", encoding="utf-8") as f:
+            saved_report = f.read().replace("```markdown", "").replace("```", "").replace("undefined", "").strip()
+
+            # Split into sections
+            sections = saved_report.split("## ")
+            for section in sections:
+                if section.strip():
+                    lines = section.strip().split("\n")
+                    title = lines[0]
+                    content = "\n".join(lines[1:])
+                    with st.expander(title.strip(), expanded=True):
+                        st.markdown(content)
+        st.info("📁 Loaded from saved report.")
+    else:
+        st.info("No saved report found. Click below to generate a new one.")
+
+    # === Button to run analysis ===
+    if st.button("🔄 Run Biogas Analysis"):
+        data_files = [
+            os.path.join(FOLDER, f)
+            for f in os.listdir(FOLDER)
+            if f.endswith(".csv") or f.endswith(".json")
+        ]
+
+        if not data_files:
+            st.warning("No data files found.")
+            st.stop()
+
+        attachments = []
+        for path in data_files:
+            with open(path, "rb") as f:
+                uploaded = openai.files.create(file=f, purpose="assistants")
+                attachments.append({
+                    "file_id": uploaded.id,
+                    "tools": [{"type": "code_interpreter"}]
+                })
+
+        prompt = """
+You are an expert in farm waste management and renewable energy.
+
+Using the provided files (manure data, biogas capacity, cow excretion records), generate a structured Markdown report with the following:
+
+## 💩 Manure Production Overview
+- Estimate total manure output per day/month.
+- Identify which cow groups produce the most manure.
+
+## ⚡️ Biogas Capacity & Usage
+- Compare manure production with biogas plant capacity.
+- Identify if there's excess/insufficient manure for optimal biogas production.
+
+## 🔧 Recommendations
+- Suggest optimization of manure collection.
+- Recommend strategies for improving biogas conversion efficiency.
+- If applicable, suggest how to use excess manure (e.g., fertilizer, compost).
+
+Do NOT include any explanations. Respond only with the report. Do NOT use code blocks.
+        """
+
+        thread = openai.beta.threads.create()
+        openai.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=prompt,
+            attachments=attachments
+        )
+
+        run = openai.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id=st.secrets["dairy_sustainability_agent"]["id"]
+        )
+
+        with st.spinner("🥼 Generating biogas & manure strategy..."):
+            while run.status not in ["completed", "failed"]:
+                time.sleep(2)
+                run = openai.beta.threads.runs.retrieve(run.id, thread_id=thread.id)
+
+        messages = openai.beta.threads.messages.list(thread_id=thread.id)
+        for msg in messages.data[::-1]:
+            if msg.role == "assistant":
+                report = msg.content[0].text.value
+                report_clean = report.replace("```markdown", "").replace("```", "").replace("undefined", "").strip()
+
+                with open(report_path, "w", encoding="utf-8") as f:
+                    f.write(report_clean)
+
+                sections = report_clean.split("## ")
+                for section in sections:
+                    if section.strip():
+                        lines = section.strip().split("\n")
+                        title = lines[0]
+                        content = "\n".join(lines[1:])
+                        with st.expander(title.strip(), expanded=True):
+                            st.markdown(content)
+
+                st.success("✅ New report generated and saved.")
+                break
+
+    st.markdown("---")
+    st.markdown("<a href='#top' style='font-size:20px;'>⬆️ Back to Top</a>", unsafe_allow_html=True)
+
+elif view == "🌦️ Weather & Climate":
+    st.title("🌦️ Weather & Climate Impact")
+
+    farm_name = st.session_state.get("farm_name")
+    FOLDER = os.path.join("streamlet/farm_data", farm_name.replace(" ", "_"))
+    report_path = os.path.join(FOLDER, "weather_climate_report.txt")
+
+    if not os.path.exists(FOLDER):
+        st.warning("Farm folder not found.")
+        st.stop()
+
+    st.markdown("### 📋 Weather & Climate Analysis Report")
+
+    if os.path.exists(report_path):
+        with open(report_path, "r", encoding="utf-8") as f:
+            saved_report = f.read().replace("```markdown", "").replace("```", "").replace("undefined", "").strip()
+            sections = saved_report.split("## ")
+            for section in sections:
+                if section.strip():
+                    lines = section.strip().split("\n")
+                    title = lines[0]
+                    content = "\n".join(lines[1:])
+                    with st.expander(title.strip(), expanded=True):
+                        st.markdown(content)
+        st.info("📁 Loaded from saved report.")
+    else:
+        st.info("No saved report found. Click below to generate a new one.")
+
+    if st.button("🔄 Run Weather Analysis"):
+        data_files = [
+            os.path.join(FOLDER, f)
+            for f in os.listdir(FOLDER)
+            if f.endswith(".csv") or f.endswith(".json")
+        ]
+
+        if not data_files:
+            st.warning("No data files found.")
+            st.stop()
+
+        attachments = []
+        for path in data_files:
+            with open(path, "rb") as f:
+                uploaded = openai.files.create(file=f, purpose="assistants")
+                attachments.append({
+                    "file_id": uploaded.id,
+                    "tools": [{"type": "code_interpreter"}]
+                })
+
+        prompt = """
+You are a weather and climate impact analyst for dairy farms.
+
+Based on the uploaded weather and farm data (precipitation, temperature, treatments, yield), generate a professional Markdown report with the following structure:
+
+## 🌫️ Climate Trends
+- Describe relevant patterns in temperature, precipitation or extreme events.
+- Note any seasonal or long-term trends.
+
+## 💧 Impact on Production
+- Highlight effects on milk yield or feed needs due to weather.
+- Mention possible droughts, heat stress, or wet conditions.
+
+## 🧠 Recommendations
+- Suggest actions like weather protection, irrigation, or ventilation.
+- Mention adaptation strategies for upcoming climate variability.
+
+Respond only in plain Markdown (NO code blocks).
+        """
+
+        thread = openai.beta.threads.create()
+        openai.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=prompt,
+            attachments=attachments
+        )
+
+        run = openai.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id=st.secrets["dairy_sustainability_agent"]["id"]
+        )
+
+        with st.spinner("🌬️ Analyzing climate impact..."):
+            while run.status not in ["completed", "failed"]:
+                time.sleep(2)
+                run = openai.beta.threads.runs.retrieve(run.id, thread_id=thread.id)
+
+        messages = openai.beta.threads.messages.list(thread_id=thread.id)
+        for msg in messages.data[::-1]:
+            if msg.role == "assistant":
+                report = msg.content[0].text.value
+                report_clean = report.replace("```markdown", "").replace("```", "").replace("undefined", "").strip()
+
+                with open(report_path, "w", encoding="utf-8") as f:
+                    f.write(report_clean)
+
+                sections = report_clean.split("## ")
+                for section in sections:
+                    if section.strip():
+                        lines = section.strip().split("\n")
+                        title = lines[0]
+                        content = "\n".join(lines[1:])
+                        with st.expander(title.strip(), expanded=True):
+                            st.markdown(content)
+
+                st.success("✅ New weather report generated and saved.")
+                break
+
+    st.markdown("---")
+    st.markdown("<a href='#top' style='font-size:20px;'>⬆️ Back to Top</a>", unsafe_allow_html=True)
+
+elif view == "🩺 Health Monitoring":
+    st.title("🩺 Health Monitoring")
+
+    farm_name = st.session_state.get("farm_name")
+    FOLDER = os.path.join("streamlet/farm_data", farm_name.replace(" ", "_"))
+    report_path = os.path.join(FOLDER, "health_monitoring_report.txt")
+
+    if not os.path.exists(FOLDER):
+        st.warning("Farm folder not found.")
+        st.stop()
+
+    st.markdown("### 📋 Health Status Report")
+
+    # === Show saved report if exists ===
+    if os.path.exists(report_path):
+        with open(report_path, "r", encoding="utf-8") as f:
+            saved_report = f.read().replace("```markdown", "").replace("```", "").replace("undefined", "").strip()
+            sections = saved_report.split("## ")
+            for section in sections:
+                if section.strip():
+                    lines = section.strip().split("\n")
+                    title = lines[0]
+                    content = "\n".join(lines[1:])
+                    with st.expander(title.strip(), expanded=True):
+                        st.markdown(content)
+        st.info("📁 Loaded from saved report.")
+    else:
+        st.info("No saved report found. Click below to generate a new one.")
+
+    # === Button to run analysis ===
+    if st.button("🔄 Run Health Analysis"):
+        data_files = [
+            os.path.join(FOLDER, f)
+            for f in os.listdir(FOLDER)
+            if f.endswith(".csv") or f.endswith(".json")
+        ]
+
+        if not data_files:
+            st.warning("No data files found.")
+            st.stop()
+
+        attachments = []
+        for path in data_files:
+            with open(path, "rb") as f:
+                uploaded = openai.files.create(file=f, purpose="assistants")
+                attachments.append({
+                    "file_id": uploaded.id,
+                    "tools": [{"type": "code_interpreter"}]
+                })
+
+        prompt = """
+You are a veterinary health advisor for dairy farms.
+
+Using the provided data files (diagnoses, treatments, cow health, productivity), return a structured health status report.
+
+Return in plain Markdown (NO code blocks). Include exactly these sections:
+
+## 🧾 Key Health Metrics
+- Total number of treated cows
+- Average treatment duration
+- Most common diagnoses
+
+## 🚨 High-Risk Animals
+- List of animal IDs (or summaries) with repeated or severe diseases
+- Suggested monitoring or preventive measures
+
+## 💊 Recommendations
+- Preventive strategies to reduce illness rate
+- Suggestions for improving herd health management
+
+Do not add introductions or explanations. Return ONLY the report.
+        """
+
+        thread = openai.beta.threads.create()
+        openai.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=prompt,
+            attachments=attachments
+        )
+
+        run = openai.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id=st.secrets["dairy_sustainability_agent"]["id"]
+        )
+
+        with st.spinner("🩺 Analyzing herd health data..."):
+            while run.status not in ["completed", "failed"]:
+                time.sleep(2)
+                run = openai.beta.threads.runs.retrieve(run.id, thread_id=thread.id)
+
+        messages = openai.beta.threads.messages.list(thread_id=thread.id)
+        for msg in messages.data[::-1]:
+            if msg.role == "assistant":
+                report = msg.content[0].text.value
+                report_clean = report.replace("```markdown", "").replace("```", "").replace("undefined", "").strip()
+
+                with open(report_path, "w", encoding="utf-8") as f:
+                    f.write(report_clean)
+
+                sections = report_clean.split("## ")
+                for section in sections:
+                    if section.strip():
+                        lines = section.strip().split("\n")
+                        title = lines[0]
+                        content = "\n".join(lines[1:])
+                        with st.expander(title.strip(), expanded=True):
+                            st.markdown(content)
+
+                st.success("✅ New report generated and saved.")
+                break
+
+    # Back to top link
+    st.markdown("---")
+    st.markdown("<a href='#top' style='font-size:20px;'>⬆️ Back to Top</a>", unsafe_allow_html=True)
+
+elif view == "🌍 Sustainability Dashboard":
+    st.title("🌍 Sustainability Dashboard")
+
+    farm_name = st.session_state.get("farm_name")
+    FOLDER = os.path.join("streamlet/farm_data", farm_name.replace(" ", "_"))
+    report_path = os.path.join(FOLDER, "sustainability_dashboard_report.txt")
+
+    if not os.path.exists(FOLDER):
+        st.warning("Farm folder not found.")
+        st.stop()
+
+    st.markdown("### 📋 Sustainability Report")
+
+    # === Show saved report if it exists ===
+    if os.path.exists(report_path):
+        with open(report_path, "r", encoding="utf-8") as f:
+            saved_report = f.read().replace("```markdown", "").replace("```", "").replace("undefined", "").strip()
+            sections = saved_report.split("## ")
+            for section in sections:
+                if section.strip():
+                    lines = section.strip().split("\n")
+                    title = lines[0]
+                    content = "\n".join(lines[1:])
+                    with st.expander(title.strip(), expanded=True):
+                        st.markdown(content)
+        st.info("📁 Loaded from saved report.")
+    else:
+        st.info("No saved report found. Click below to generate a new one.")
+
+    # === Button to run analysis ===
+    if st.button("🔄 Run Sustainability Analysis"):
+        data_files = [
+            os.path.join(FOLDER, f)
+            for f in os.listdir(FOLDER)
+            if f.endswith(".csv") or f.endswith(".json")
+        ]
+
+        if not data_files:
+            st.warning("No data files found.")
+            st.stop()
+
+        attachments = []
+        for path in data_files:
+            with open(path, "rb") as f:
+                uploaded = openai.files.create(file=f, purpose="assistants")
+                attachments.append({
+                    "file_id": uploaded.id,
+                    "tools": [{"type": "code_interpreter"}]
+                })
+
+        prompt = """
+You are a sustainability advisor for dairy farms.
+
+Using the provided farm data (economy, health, environment), return a structured sustainability dashboard.
+
+Return in plain Markdown (NO code blocks). Include exactly the following sections:
+
+## 💰 Economic Overview
+- Monthly milk income
+- Total treatment and feed costs
+- Profit or loss summary
+
+## 🐄 Animal Health Status
+- % of treated cows
+- Average duration of treatments
+- Risk profile of the herd
+
+## 🌱 Environmental Metrics
+- Antibiotic usage (if data available)
+- Manure production (estimates if needed)
+- Any sustainability concerns
+
+## ✅ Recommendations
+- Actionable suggestions to improve sustainability in each area
+
+Do NOT explain what you're doing. Return ONLY the formatted report.
+        """
+
+        thread = openai.beta.threads.create()
+        openai.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=prompt,
+            attachments=attachments
+        )
+
+        run = openai.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id=st.secrets["dairy_sustainability_agent"]["id"]
+        )
+
+        with st.spinner("🌍 Generating sustainability dashboard..."):
+            while run.status not in ["completed", "failed"]:
+                time.sleep(2)
+                run = openai.beta.threads.runs.retrieve(run.id, thread_id=thread.id)
+
+        messages = openai.beta.threads.messages.list(thread_id=thread.id)
+        for msg in messages.data[::-1]:
+            if msg.role == "assistant":
+                report = msg.content[0].text.value
+                report_clean = report.replace("```markdown", "").replace("```", "").replace("undefined", "").strip()
+
+                with open(report_path, "w", encoding="utf-8") as f:
+                    f.write(report_clean)
+
+                sections = report_clean.split("## ")
+                for section in sections:
+                    if section.strip():
+                        lines = section.strip().split("\n")
+                        title = lines[0]
+                        content = "\n".join(lines[1:])
+                        with st.expander(title.strip(), expanded=True):
+                            st.markdown(content)
+
+                st.success("✅ New report generated and saved.")
+                break
+
+    # Back to top link
+    st.markdown("---")
+    st.markdown("<a href='#top' style='font-size:20px;'>⬆️ Back to Top</a>", unsafe_allow_html=True)

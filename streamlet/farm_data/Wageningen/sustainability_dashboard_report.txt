@@ -1,0 +1,20 @@
+## 💰 Economic Overview
+- **Monthly Milk Income**: Calculated from milk yield data across various milking sessions.
+- **Total Treatment and Feed Costs**: Derived from treatment data and cost per dose.
+- **Profit or Loss Summary**: Estimated through comparison of total income versus treatment and feed costs.
+
+## 🐄 Animal Health Status
+- **% of Treated Cows**: Computed from health records indicating cows under treatment.
+- **Average Duration of Treatments**: Correlated with treatment logs and repeated entries for the same illness.
+- **Risk Profile of the Herd**: Evaluated from health status data (e.g., at risk, under treatment).
+
+## 🌱 Environmental Metrics
+- **Antibiotic Usage**: Frequency and dosage extracted from treatment logs.
+- **Manure Production**: Estimated based on the number of animals and typical waste generation rates.
+- **Any Sustainability Concerns**: Identified from overlapping antibiotic usage and health status.
+
+## ✅ Recommendations
+- Optimize feed and energy use to enhance profit margins.
+- Implement strategic health interventions to reduce treatment frequency.
+- Monitor and reduce antibiotic usage to align with best practices for environmental and animal health.
+- Enhance data collection for more precise sustainability metrics, particularly in manure management.

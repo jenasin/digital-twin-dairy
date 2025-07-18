@@ -1,0 +1,12 @@
+## 🧾 Key Health Metrics
+- Total number of treated cows: 200
+- Average treatment duration: 2.10 days
+- Most common diagnoses: Mastitis (360 cases), Metritis (357 cases), Respiratory (357 cases)
+
+## 🚨 High-Risk Animals
+- List of animal IDs with repeated or severe diseases: COW001, COW002, COW008, COW010, COW011, COW013, COW014, COW016, COW018, COW020, COW022, COW024, COW026, COW032, COW034, COW036, COW044, COW048, COW052, COW053, COW057, COW059, COW071, COW072, COW081, COW085, COW086, COW101, COW106, COW109, COW110, COW112, COW113, COW117, COW122, COW133, COW137, COW142, COW149, COW150, COW152, COW158, COW159, COW160, COW161, COW165, COW173, COW182, COW183, COW193, COW194
+- Suggested monitoring or preventive measures: Monitor high-risk animals closely for early signs of illness, particularly those with a history of severe or repeated diseases such as mastitis, metritis, and respiratory issues. Implement routine health screenings and maintain detailed medical records to quickly identify and respond to potential outbreaks.
+
+## 💊 Recommendations
+- Preventive strategies to reduce illness rate: Implement a comprehensive vaccination program against common diseases, maintain clean and hygienic living conditions to prevent infection spread, and ensure balanced nutrition to support immune health.
+- Suggestions for improving herd health management: Regularly review and update treatment protocols based on veterinary advancements, train staff on early detection of health issues, and utilize technology (e.g., health monitoring systems) to track health metrics and trends for timely interventions.

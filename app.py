@@ -47,7 +47,10 @@ view = st.sidebar.radio("📋 Menu", [
     "📂 Farm Files Overview",
     "📊 View Last Report",
     "📈 Trends & Visual Insights",
-    "🌍 Farm Location & Profile"
+    "🌍 Farm Location & Profile",
+    "🧠 AI Sustainability Assistant",
+    "📈 Milk Production Forecast",
+    "🥕 Feed Optimization"
 ])
 
 st.title(f"🐄 Dairy Sustainability AI – `{farm_name}`")
@@ -241,3 +244,251 @@ elif view == "📈 Trends & Visual Insights":
 
 elif view == "🌍 Farm Location & Profile":
     import farm_profile_view  # spustí se přes streamlit
+
+elif view == "🧠 AI Sustainability Assistant":
+    st.title("🧠 AI Sustainability Assistant")
+
+    # === Získání složky vybrané farmy ===
+    farm_name = st.session_state.get("farm_name")
+    FOLDER = os.path.join("streamlet/farm_data", farm_name.replace(" ", "_"))
+
+    if not os.path.exists(FOLDER):
+        st.warning("Farm folder not found.")
+        st.stop()
+
+    # === Podmenu – typ AI analýzy ===
+    st.sidebar.markdown("### 🧪 Analysis Type")
+    analysis_type = st.sidebar.radio("Choose insight:", [
+        "📈 Milk Production Forecast",
+        "🥕 Feed Optimization",
+        "🩺 Animal Health Monitoring",
+        "♻️ Sustainability & Biogas Summary"
+    ])
+
+    # === Prompty pro jednotlivé funkce ===
+    prompt_map = {
+        "📈 Milk Production Forecast": """
+You are a dairy farm assistant. Based on the uploaded data files (milk yield, animals, treatments, etc.),
+analyze milk production trends. Return:
+- Average daily yield
+- Recent 7-day trend
+- Forecast for the next 3 days
+- Any risks or drops in production
+Respond in English. Do not use markdown.
+""",
+        "🥕 Feed Optimization": """
+You are an AI feed advisor. Based on herd and feeding data,
+suggest how to optimize feed rations:
+- Where to reduce feed (e.g., over-conditioned cows)
+- Where to increase (e.g., low milk output)
+Make recommendations practical. Respond in English.
+""",
+        "🩺 Animal Health Monitoring": """
+You are a herd health monitoring assistant. Based on the uploaded data,
+identify cows with possible health issues:
+- Low activity or milk drop
+- High temperature
+- Frequent treatments
+Return insights to help the farmer prevent problems.
+""",
+        "♻️ Sustainability & Biogas Summary": """
+You are a farm sustainability analyst. Based on herd size, manure, production and energy data:
+- Estimate biogas potential (0.075 m³/kg manure)
+- Estimate CO₂ savings
+- Recommend strategies for reducing emissions and improving circularity
+Respond concisely in English.
+"""
+    }
+
+    # === Načtení všech souborů z dané farmy ===
+    data_files = [
+        os.path.join(FOLDER, f)
+        for f in os.listdir(FOLDER)
+        if f.endswith(".csv") or f.endswith(".json")
+    ]
+
+    if not data_files:
+        st.warning("No CSV or JSON files found for this farm.")
+        st.stop()
+
+    # === Převedení všech souborů na attachments ===
+    attachments = []
+    for path in data_files:
+        with open(path, "rb") as f:
+            uploaded = openai.files.create(file=f, purpose="assistants")
+            attachments.append({
+                "file_id": uploaded.id,
+                "tools": [{"type": "code_interpreter"}]
+            })
+
+    # === Odeslání promptu a dat do asistenta ===
+    thread = openai.beta.threads.create()
+
+    openai.beta.threads.messages.create(
+        thread_id=thread.id,
+        role="user",
+        content=prompt_map[analysis_type],
+        attachments=attachments
+    )
+
+    run = openai.beta.threads.runs.create(
+        thread_id=thread.id,
+        assistant_id=st.secrets["dairy_sustainability_agent"]["id"]
+    )
+
+    with st.spinner("🤖 GPT-4 is analyzing your farm data..."):
+        while run.status not in ["completed", "failed"]:
+            time.sleep(2)
+            run = openai.beta.threads.runs.retrieve(run.id, thread_id=thread.id)
+
+    # === Zobrazení odpovědi ===
+    messages = openai.beta.threads.messages.list(thread_id=thread.id)
+    for msg in messages.data[::-1]:
+        if msg.role == "assistant":
+            st.subheader("📋 AI Output:")
+            st.write(msg.content[0].text.value.strip())
+            break
+
+
+# === 1. Milk Production Forecast ===
+elif view == "📈 Milk Production Forecast":
+    st.title("📈 Milk Production Forecast")
+    
+    # === Načtení dat ===
+    farm_name = st.session_state.get("farm_name")
+    FOLDER = os.path.join("streamlet/farm_data", farm_name.replace(" ", "_"))
+    if not os.path.exists(FOLDER):
+        st.warning("Farm folder not found.")
+        st.stop()
+
+    data_files = [os.path.join(FOLDER, f) for f in os.listdir(FOLDER) if f.endswith(".csv") or f.endswith(".json")]
+    if not data_files:
+        st.warning("No data files found for this farm.")
+        st.stop()
+
+    attachments = []
+    for path in data_files:
+        with open(path, "rb") as f:
+            uploaded = openai.files.create(file=f, purpose="assistants")
+            attachments.append({"file_id": uploaded.id, "tools": [{"type": "code_interpreter"}]})
+
+    prompt = """
+You are a dairy farm assistant. Based on the uploaded data files (milk yield, animals, treatments, etc.),
+analyze milk production trends. Return:
+- Average daily yield
+- Recent 7-day trend
+- Forecast for the next 3 days
+- Any risks or drops in production
+Respond in English. Do not use markdown.
+"""
+
+    thread = openai.beta.threads.create()
+    openai.beta.threads.messages.create(
+        thread_id=thread.id,
+        role="user",
+        content=prompt,
+        attachments=attachments
+    )
+    run = openai.beta.threads.runs.create(thread_id=thread.id, assistant_id=st.secrets["dairy_sustainability_agent"]["id"])
+
+    with st.spinner("🔍 Analyzing milk production trends..."):
+        while run.status not in ["completed", "failed"]:
+            time.sleep(2)
+            run = openai.beta.threads.runs.retrieve(run.id, thread_id=thread.id)
+
+    messages = openai.beta.threads.messages.list(thread_id=thread.id)
+    for msg in messages.data[::-1]:
+        if msg.role == "assistant":
+            st.subheader("📋 Milk Production Report")
+            response = msg.content[0].text.value.strip()
+            sections = response.split("\n")
+            for line in sections:
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    st.markdown(f"**{key.strip()}**: {value.strip()}")
+                else:
+                    st.write(line)
+            break
+
+elif view == "🥕 Feed Optimization":
+    st.title("🥕 Feed Optimization for Herd Management")
+
+    farm_name = st.session_state.get("farm_name")
+    FOLDER = os.path.join("streamlet/farm_data", farm_name.replace(" ", "_"))
+
+    if not os.path.exists(FOLDER):
+        st.warning("Farm folder not found.")
+        st.stop()
+
+    # === Load farm files ===
+    data_files = [
+        os.path.join(FOLDER, f)
+        for f in os.listdir(FOLDER)
+        if f.endswith(".csv") or f.endswith(".json")
+    ]
+
+    if not data_files:
+        st.warning("No CSV or JSON files found for this farm.")
+        st.stop()
+
+    # === Upload files to OpenAI ===
+    attachments = []
+    for path in data_files:
+        with open(path, "rb") as f:
+            uploaded = openai.files.create(file=f, purpose="assistants")
+            attachments.append({
+                "file_id": uploaded.id,
+                "tools": [{"type": "code_interpreter"}]
+            })
+
+    # === Prompt: structured + direct instruction ===
+    prompt = """
+You are a feed advisor for dairy cows.
+
+Use the following data files (milk yield, cow info, treatments, cost) to generate a clear, structured report.
+
+Return in Markdown format (no explanations) the following:
+## 🥛 Underperforming Cows
+- List cows (by ID or group) with low milk yield and high number of lactations.
+- Include suggestions on increasing feed quality or amount.
+
+## 🐘 Over-conditioned Cows
+- List cows that are possibly overfed (low output, high age/lactation, good health).
+- Recommend reduction in feeding or adjustment.
+
+## 🧪 Feed Strategy Recommendations
+- Summary of where to reduce/increase feed
+- General feed adjustment strategy for the herd
+- If any nutrient imbalance is suspected, mention it
+
+Format output for use in a web app. Use emojis and professional, clear language. Do not explain what you're doing — just give the report.
+    """
+
+    # === Start thread and send message ===
+    thread = openai.beta.threads.create()
+
+    openai.beta.threads.messages.create(
+        thread_id=thread.id,
+        role="user",
+        content=prompt,
+        attachments=attachments
+    )
+
+    run = openai.beta.threads.runs.create(
+        thread_id=thread.id,
+        assistant_id=st.secrets["dairy_sustainability_agent"]["id"]
+    )
+
+    with st.spinner("🐄 Optimizing feeding strategy..."):
+        while run.status not in ["completed", "failed"]:
+            time.sleep(2)
+            run = openai.beta.threads.runs.retrieve(run.id, thread_id=thread.id)
+
+    # === Show assistant response ===
+    messages = openai.beta.threads.messages.list(thread_id=thread.id)
+    for msg in messages.data[::-1]:
+        if msg.role == "assistant":
+            st.markdown("### 📋 Feed Optimization Report")
+            st.markdown(msg.content[0].text.value.strip())
+            break
+
